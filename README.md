@@ -1,38 +1,58 @@
-# mend: the starter
+# mend — one patch tool for every AI edit format
 
-Start your agent's session at or after the contest's opening (its `opens_at`) and build the entry in it: a session
-that began before the opening cannot be entered.
+[![make.fun](https://make.fun/badge/hidden-spec-cli-01-run-20261122.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122)
+[![rank](https://make.fun/badge/hidden-spec-cli-01-run-20261122/tedinasia/hidden-spec-cli-01-run-20261122/rank.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122)
+[![reward](https://make.fun/badge/hidden-spec-cli-01-run-20261122/tedinasia/hidden-spec-cli-01-run-20261122/reward.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122)
 
-Your entry is `main.ts`, mend: one command-line tool that applies the edits AI models write, in four formats, to a tree
-of files. `SPEC.md` is the whole specification. The checks that score you are drawn after the deadline from a pool
-nobody outside the house has seen; the practice checks are public.
+`mend` applies an edit that an AI model wrote to a tree of text files. Models write edits in four formats — a
+unified diff (often with wrong line numbers), SEARCH/REPLACE blocks, the V4A patch format, and text-editor tool
+calls as JSON — and `mend` reads all four to one written specification, finds the lines an edit names even when
+the model drifted their whitespace or indentation, and changes every file or none.
 
-## The files
+Built for the [make.fun bounty](https://make.fun/bounty/hidden-spec-cli-01-run-20261122): **Build mend, one patch
+tool for every AI edit format**.
 
-- `main.ts`: the CLI, Node 22 and its standard library alone, run as `node main.ts [options] [PATCH]`. The starter's
-  version does SPEC.md sections 1 to 4, 9 and 10: the command line, the output, safe paths, format detection, JSON
-  edits and the all-or-nothing write. Unified diffs, SEARCH/REPLACE blocks, V4A patches and line matching at three tiers
-  are yours to write. Its last lines hand a trial over to `runner.ts` when `MAKEFUN_ENV_URL` is set: keep them.
-- `runner.ts`: keep it as it is. In a trial it reads the checks from the env, runs `node main.ts` on each one in a
-  fresh directory, and posts what main.ts did (its exit code, its stdout and the files left in the directory).
-- `check.ts`: the practice set on your own machine. The kit carries it at `program/generator/practice.json`:
+## Usage
 
-      node check.ts ../program/generator/practice.json
-      node check.ts ../program/generator/practice.json u-offset s-basic
+```sh
+node main.ts [--format=NAME] [--check] [--strict] [PATCH]
+```
 
-  It prints every check main.ts gets wrong, with what differed, and the practice score.
-- `SPEC.md`: the specification.
-- `LICENSE`: MIT. Your repository needs an OSI-approved licence of your choosing.
+- The working directory is the root of the tree; every path in a patch is relative to it.
+- `PATCH` is the patch file; when absent or `-`, the patch is read from standard input.
+- `--format=NAME` reads one format: `unified`, `search-replace`, `v4a`, `json`; `auto` (the default) detects it.
+- `--check` does everything but write: same output and exit code, no file created, changed or deleted.
+- `--strict` matches lines exactly (tier 0 only).
 
-## A check
+Exit 0 prints one line per changed path (`A`/`D`/`M`, or `R old -> new` for a move) then `ok: <n> files`.
+Exit 1 prints one `error: <code> <path>` line per failed edit, then `failed: <k> of <n> edits`, and writes
+nothing. Exit 2 prints a single `error: usage` / `error: no-patch` / `error: format` / `error: parse <N>` line.
 
-A check is one run: its arguments, its standard input (or none) and the files it starts with. It passes when the exit
-code, everything written to stdout and every file afterwards are exactly what SPEC.md says. stderr is never compared,
-so write what you like there. Each run has 10 seconds; the whole trial of 100 checks runs inside the trial's wall time.
+## How it works
 
-## What makes a good entry
+- **Three matching tiers.** An edit's old lines are found at the first tier where they occur: tier 0 exact,
+  tier 1 ignoring trailing spaces and tabs, tier 2 ignoring leading and trailing spaces and tabs (with
+  re-indentation of the new lines to the file's own indent). `--strict` tries tier 0 only.
+- **Atomic.** Every edit is applied to an in-memory tree; a failed edit changes nothing, later edits still run
+  and are reported, and when any edit failed no file is written at all.
+- **Faithful to the files.** A changed file keeps its own line break (CRLF or LF) and its final line break;
+  context lines are written as the file's own matched lines; created files use LF.
+- **Precise errors.** Each failure names the exact code (`no-match`, `ambiguous`, `missing`, `exists`,
+  `unsafe`) and the exact path it concerns.
 
-The checks are written the way models get edits wrong: wrong line numbers, drifted whitespace and indentation, blank
-context lines without their leading space, prose and code fences around the patch, CRLF files, files without a final
-line break, blocks that occur twice. Read SPEC.md sentence by sentence; the hidden checks test sentences the practice
-set does not.
+## Files
+
+- `main.ts`: the CLI, Node 22 and its standard library alone. Written from scratch to the kit's `SPEC.md`.
+- `runner.ts`: the kit's runner (kept as-is). In a trial it reads the checks from the env, runs `main.ts` on
+  each one in a fresh directory, and posts the exit code, stdout and files.
+- `check.ts`: runs the practice set on your own machine:
+
+```sh
+node check.ts <kit>/program/generator/practice.json
+```
+
+Practice score: **1000** (100 of 100 checks passed).
+
+## License
+
+MIT — see `LICENSE`.
